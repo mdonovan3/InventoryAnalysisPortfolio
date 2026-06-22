@@ -65,23 +65,22 @@ app_theme <- create_theme(
 # ── UI ────────────────────────────────────────────────────────────────────────
 ui <- dashboardPage(
   skin  = "black",
-  title = "Bones Wine — Inventory Analysis",
+  title = "Inventory Analysis",
 
   dashboardHeader(
     title = tags$span(
       style = "font-weight: 600; letter-spacing: 0.3px;",
-      "Bones Wine Analytics"
+      "Inventory Analysis"
     )
   ),
 
   dashboardSidebar(
     sidebarMenu(
       id = "sidebar_menu",
-      menuItem("Overview",   tabName = "overview",   icon = icon("chart-line")),
-      menuItem("Inventory",  tabName = "inventory",  icon = icon("warehouse")),
-      menuItem("Sales",      tabName = "sales",      icon = icon("chart-bar")),
-      menuItem("Purchases",  tabName = "purchases",  icon = icon("truck")),
-      menuItem("Variance",   tabName = "variance",   icon = icon("balance-scale"))
+      menuItem("Overview",      tabName = "overview",      icon = icon("chart-line")),
+      menuItem("Inventory",     tabName = "inventory",     icon = icon("warehouse")),
+      menuItem("Transactions",  tabName = "transactions",  icon = icon("exchange-alt")),
+      menuItem("Variance",      tabName = "variance",      icon = icon("balance-scale"))
     ),
     tags$hr(style = "border-color: #21262d; margin: 12px 0;"),
     tags$div(
@@ -143,6 +142,7 @@ ui <- dashboardPage(
           box(
             title = "Inventory Value Trend (2023 – Present)",
             width = 8, status = "primary", solidHeader = TRUE,
+            collapsible = TRUE, collapsed = TRUE,
             plotOutput("trend_chart", height = "280px")
           ),
           box(
@@ -198,41 +198,47 @@ ui <- dashboardPage(
         )
       ),
 
-      # ── Sales ───────────────────────────────────────────────────────────────
-      tabItem("sales",
-        box(
-          width = 12, status = "primary", solidHeader = TRUE,
-          title = "Sales by SKU — Period Totals",
-          DTOutput("sales_table")
-        )
-      ),
-
-      # ── Purchases ───────────────────────────────────────────────────────────
-      tabItem("purchases",
-        fluidRow(
-          box(
-            width = 4, status = "primary",
-            title = "Filter Vendor",
-            solidHeader = FALSE,
-            selectizeInput(
-              "vendor_filter", NULL,
-              choices  = vendors,
-              selected = NULL,
-              multiple = TRUE,
-              options  = list(placeholder = "All vendors")
+      # ── Transactions ─────────────────────────────────────────────────────────
+      tabItem("transactions",
+        tabBox(
+          width = 12,
+          tabPanel(
+            "Sales",
+            box(
+              width = 12, status = "primary", solidHeader = TRUE,
+              title = "Sales by SKU — Period Totals",
+              DTOutput("sales_table")
             )
           ),
-          box(
-            width = 8, status = "primary",
-            title = "Purchases by Vendor",
-            solidHeader = FALSE,
-            plotOutput("vendor_bar", height = "180px")
+          tabPanel(
+            "Purchases",
+            fluidRow(
+              box(
+                width = 4, status = "primary",
+                title = "Filter Vendor",
+                solidHeader = FALSE,
+                selectizeInput(
+                  "vendor_filter", NULL,
+                  choices  = vendors,
+                  selected = NULL,
+                  multiple = TRUE,
+                  options  = list(placeholder = "All vendors")
+                )
+              ),
+              box(
+                width = 8, status = "primary",
+                title = "Purchases by Vendor",
+                solidHeader = FALSE,
+                collapsible = TRUE, collapsed = TRUE,
+                plotOutput("vendor_bar", height = "180px")
+              )
+            ),
+            box(
+              width = 12, status = "primary", solidHeader = TRUE,
+              title = "Purchase Detail",
+              DTOutput("purch_table")
+            )
           )
-        ),
-        box(
-          width = 12, status = "primary", solidHeader = TRUE,
-          title = "Purchase Detail",
-          DTOutput("purch_table")
         )
       ),
 
@@ -242,11 +248,13 @@ ui <- dashboardPage(
           box(
             width = 6, status = "danger", solidHeader = TRUE,
             title = "Beginning Inventory — Top Variance by SKU",
+            collapsible = TRUE, collapsed = TRUE,
             plotOutput("beg_var_chart", height = "260px")
           ),
           box(
             width = 6, status = "danger", solidHeader = TRUE,
             title = "Ending Inventory — Top Variance by SKU",
+            collapsible = TRUE, collapsed = TRUE,
             plotOutput("end_var_chart", height = "260px")
           )
         ),
@@ -606,6 +614,7 @@ server <- function(input, output, session) {
   # ── Variance tables ────────────────────────────────────────────────────────
   var_dt <- function(df_var) {
     df_var %>%
+      mutate(`Var. $ (Abs)` = abs(variance_ext)) %>%
       select(
         Room = room_name,
         SKU  = inventory_name,
@@ -613,7 +622,8 @@ server <- function(input, output, session) {
         Theoretical = theoretical_quantity,
         `Var. Qty`  = variance_qty,
         `Unit Cost` = product_cost,
-        `Var. $`    = variance_ext
+        `Var. $`    = variance_ext,
+        `Var. $ (Abs)` = `Var. $ (Abs)`
       ) %>%
       arrange(`Var. $`) %>%
       datatable(
@@ -627,7 +637,7 @@ server <- function(input, output, session) {
         rownames = FALSE,
         class    = "compact"
       ) %>%
-      formatCurrency(c("Unit Cost", "Var. $"), digits = 2) %>%
+      formatCurrency(c("Unit Cost", "Var. $", "Var. $ (Abs)"), digits = 2) %>%
       formatRound(c("Counted", "Theoretical", "Var. Qty"), digits = 0) %>%
       formatStyle(
         "Var. $",

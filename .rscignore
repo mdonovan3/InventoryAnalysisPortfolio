@@ -1,0 +1,7 @@
+extract_data.R
+anonymize_data.R
+data/inv_details.rds
+data/inv_totals.rds
+data/inventories.rds
+data/purchases.rds
+data/sales.rds
